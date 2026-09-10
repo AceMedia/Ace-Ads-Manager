@@ -72,13 +72,14 @@ final class Ace_Ads_Render {
     public static function slot( string $slot, array $block_context = [], int $ad_id = 0 ): string {
         $context = self::context_for( $slot, $block_context );
         if ( $ad_id ) {
-            $resolved = Ace_Ads_Manager::is_live( $ad_id ) ? [ 'ad_id' => $ad_id, 'rule' => [] ] : null;
+            $resolved = Ace_Ads_Manager::is_live( $ad_id ) ? [ 'ad_id' => $ad_id, 'rule' => [], 'index' => -1 ] : null;
         } else {
             $resolved = Ace_Ads_Rules::resolve( $slot, $context );
         }
         if ( ! $resolved ) {
             return (string) apply_filters( 'ace_ads_empty_slot', '', $slot, $context );
         }
+        $context['rule_index'] = (int) ( $resolved['index'] ?? -1 );
         return self::ad( (int) $resolved['ad_id'], $slot, $context );
     }
 
@@ -94,11 +95,15 @@ final class Ace_Ads_Render {
         $image      = get_the_post_thumbnail_url( $ad_id, 'large' );
         $copy       = apply_filters( 'the_content', $ad->post_content );
         $classes    = array_filter( [ 'ace-ad', 'ace-ad--' . sanitize_html_class( $slot ?: 'inline' ), 'ace-ad--image-' . $image_mode, (string) Ace_Ads_Manager_Settings::get( 'wrapper_class', '' ) ] );
-        $rel        = Ace_Ads_Manager_Settings::get( 'nofollow', 1 ) ? 'nofollow sponsored noopener' : 'noopener';
+        $rel_mode   = (string) get_post_meta( $ad_id, Ace_Ads_Manager::META_REL, true );
+        $nofollow   = 'nofollow' === $rel_mode || ( 'follow' !== $rel_mode && Ace_Ads_Manager_Settings::get( 'nofollow', 1 ) );
+        $rel        = $nofollow ? 'nofollow sponsored noopener' : 'noopener';
+        $target     = Ace_Ads_Manager_Settings::get( 'new_tab', 1 ) ? ' target="_blank"' : '';
+        $rule_index = (int) ( $context['rule_index'] ?? -1 );
 
         $style = ( $image && 'background' === $image_mode ) ? ' style="--ace-ad-image:url(' . esc_url( $image ) . ')"' : '';
 
-        $html  = '<aside class="' . esc_attr( implode( ' ', $classes ) ) . '" data-ace-ad="' . (int) $ad_id . '" data-ace-slot="' . esc_attr( $slot ) . '"' . $style . '>';
+        $html  = '<aside class="' . esc_attr( implode( ' ', $classes ) ) . '" data-ace-ad="' . (int) $ad_id . '" data-ace-slot="' . esc_attr( $slot ) . '" data-ace-rule="' . $rule_index . '"' . $style . ' aria-label="' . esc_attr__( 'Advertisement', 'ace-ads-manager' ) . '">';
         if ( $image && 'above' === $image_mode ) {
             $html .= '<img class="ace-ad__image" src="' . esc_url( $image ) . '" alt="" loading="lazy" decoding="async">';
         }
@@ -109,7 +114,7 @@ final class Ace_Ads_Render {
             $html .= '<p class="ace-ad__code">' . esc_html__( 'Code:', 'ace-ads-manager' ) . ' <strong>' . esc_html( $code ) . '</strong></p>';
         }
         if ( $link ) {
-            $html .= '<a class="ace-ad__cta" href="' . esc_url( $link ) . '" rel="' . esc_attr( $rel ) . '" target="_blank">' . esc_html( $cta ?: __( 'Find out more', 'ace-ads-manager' ) ) . '</a>';
+            $html .= '<a class="ace-ad__cta" href="' . esc_url( $link ) . '" rel="' . esc_attr( $rel ) . '"' . $target . '>' . esc_html( $cta ?: __( 'Find out more', 'ace-ads-manager' ) ) . '</a>';
         }
         $html .= '</div></aside>';
 
@@ -139,11 +144,18 @@ final class Ace_Ads_Render {
             return $content;
         }
         $after = (int) ( $resolved['rule']['after_paragraphs'] ?? 0 ) ?: (int) Ace_Ads_Manager_Settings::get( 'in_content_paragraphs', 3 );
-        $html  = self::ad( (int) $resolved['ad_id'], 'in-content', $context );
+        $pieces = preg_split( '/(<\/p>)/i', $content, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY );
+        $total  = count( array_filter( $pieces, static function ( $piece ) {
+            return 0 === strcasecmp( $piece, '</p>' );
+        } ) );
+        if ( $total < (int) Ace_Ads_Manager_Settings::get( 'in_content_min_paragraphs', 4 ) ) {
+            return $content;
+        }
+        $context['rule_index'] = (int) ( $resolved['index'] ?? -1 );
+        $html = self::ad( (int) $resolved['ad_id'], 'in-content', $context );
         if ( ! $html ) {
             return $content;
         }
-        $pieces = preg_split( '/(<\/p>)/i', $content, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY );
         $out    = '';
         $count  = 0;
         $done   = false;

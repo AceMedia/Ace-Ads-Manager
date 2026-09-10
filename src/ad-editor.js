@@ -29,6 +29,20 @@ const TYPES_WITH_VALUES = {
 let rules = [];
 let jsonField;
 let root;
+const names = {};
+
+async function resolveName( value ) {
+	if ( names[ value ] || ! value.includes( ':' ) ) return;
+	const [ taxonomy, id ] = value.split( ':' );
+	names[ value ] = '…';
+	try {
+		const res = await fetch( `${ CFG.rest_url }wp/v2/${ taxonomyRestBase( taxonomy ) }/${ id }?_fields=name`, { headers: { 'X-WP-Nonce': CFG.nonce }, credentials: 'same-origin' } );
+		names[ value ] = res.ok ? `${ CFG.taxonomies[ taxonomy ] || taxonomy }: ${ ( await res.json() ).name }` : value;
+	} catch ( e ) {
+		names[ value ] = value;
+	}
+	render();
+}
 
 function newRule() {
 	return { slot: Object.keys( CFG.slots || {} )[ 0 ] || 'top', priority: 10, targets: [ { type: 'everywhere', values: [] } ], loop_index: '', parent_block: '', after_paragraphs: 0 };
@@ -65,14 +79,17 @@ function valuesEditor( target, onChange ) {
 	if ( kind === 'terms' ) {
 		const taxSelect = el( 'select', {}, Object.entries( CFG.taxonomies ).map( ( [ v, label ] ) => el( 'option', { value: v }, label ) ) );
 		const search = el( 'input', { type: 'search', placeholder: 'Search terms…' } );
-		const results = el( 'select', { size: 5, class: 'ace-ad-term-results' } );
-		const chips = el( 'span', { class: 'ace-ad-chips' }, target.values.map( ( v ) => chip( v, () => { target.values = target.values.filter( ( x ) => x !== v ); onChange(); } ) ) );
+		const results = el( 'select', { size: 5, class: 'ace-ad-term-results', hidden: true } );
+		target.values.forEach( resolveName );
+		const chips = el( 'span', { class: 'ace-ad-chips' }, target.values.map( ( v ) => chip( names[ v ] || v, () => { target.values = target.values.filter( ( x ) => x !== v ); onChange(); } ) ) );
 		let timer;
 		search.addEventListener( 'input', () => {
 			clearTimeout( timer );
 			timer = setTimeout( async () => {
 				const found = await searchTerms( taxSelect.value, search.value );
+				found.forEach( ( t ) => { names[ `${ taxSelect.value }:${ t.id }` ] = `${ CFG.taxonomies[ taxSelect.value ] || taxSelect.value }: ${ t.name }`; } );
 				results.replaceChildren( ...found.map( ( t ) => el( 'option', { value: `${ taxSelect.value }:${ t.id }` }, t.name ) ) );
+				results.hidden = ! found.length;
 			}, 300 );
 		} );
 		results.addEventListener( 'change', () => {
@@ -88,8 +105,8 @@ function valuesEditor( target, onChange ) {
 	return el( 'span', { class: 'ace-ad-values' }, input );
 }
 
-function chip( value, onRemove ) {
-	return el( 'span', { class: 'ace-ad-chip' }, [ value, el( 'button', { type: 'button', class: 'ace-ad-chip__remove', 'aria-label': 'Remove', onclick: onRemove }, '×' ) ] );
+function chip( label, onRemove ) {
+	return el( 'span', { class: 'ace-ad-chip' }, [ label, el( 'button', { type: 'button', class: 'ace-ad-chip__remove', 'aria-label': 'Remove', onclick: onRemove }, '×' ) ] );
 }
 
 function targetRow( rule, target, index ) {

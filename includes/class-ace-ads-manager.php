@@ -23,7 +23,7 @@ final class Ace_Ads_Manager {
     const META_END        = '_ace_ad_end';
     const META_IMAGE_MODE = '_ace_ad_image_mode';
     const META_RULES      = '_ace_ad_rules';
-    const META_CLICKS     = '_ace_ad_clicks';
+    const META_REL        = '_ace_ad_rel';
 
     private static $instance = null;
 
@@ -47,6 +47,9 @@ final class Ace_Ads_Manager {
         add_action( 'init', [ $this, 'register_meta' ] );
         add_action( 'init', [ $this, 'register_block' ] );
         add_action( 'enqueue_block_editor_assets', [ $this, 'block_editor_config' ] );
+        // Ads are a headline and a sentence of copy: the classic editor keeps the offer
+        // fields and placement rules directly under the copy instead of folded away.
+        add_filter( 'use_block_editor_for_post_type', [ $this, 'classic_editor_for_ads' ], 10, 2 );
 
         add_action( 'save_post_' . self::POST_TYPE, [ $this, 'bump_version' ] );
         add_action( 'deleted_post', [ $this, 'bump_version_on_delete' ], 10, 2 );
@@ -56,8 +59,13 @@ final class Ace_Ads_Manager {
         if ( is_admin() ) {
             require_once ACE_ADS_PATH . 'includes/admin/class-ace-ads-meta-box.php';
             require_once ACE_ADS_PATH . 'includes/admin/class-ace-ads-overview.php';
+            require_once ACE_ADS_PATH . 'includes/admin/class-ace-ads-analytics.php';
             new Ace_Ads_Meta_Box();
             new Ace_Ads_Overview();
+            new Ace_Ads_Analytics();
+            foreach ( [ 'load-post.php', 'load-post-new.php', 'load-edit.php' ] as $hook ) {
+                add_action( $hook, [ 'Ace_Ads_Guide', 'post_screen_help' ] );
+            }
         }
 
         if ( defined( 'WP_CLI' ) && WP_CLI ) {
@@ -68,6 +76,7 @@ final class Ace_Ads_Manager {
 
     public static function activate(): void {
         update_option( 'ace_ads_version', ACE_ADS_VERSION, false );
+        Ace_Ads_Tracking::create_tables();
         self::instance()->register_post_type();
         flush_rewrite_rules();
     }
@@ -117,6 +126,7 @@ final class Ace_Ads_Manager {
         register_post_meta( self::POST_TYPE, self::META_START, $string );
         register_post_meta( self::POST_TYPE, self::META_END, $string );
         register_post_meta( self::POST_TYPE, self::META_IMAGE_MODE, $string );
+        register_post_meta( self::POST_TYPE, self::META_REL, $string );
         register_post_meta( self::POST_TYPE, self::META_RULES, [
             'type'              => 'array',
             'single'            => true,
@@ -133,6 +143,10 @@ final class Ace_Ads_Manager {
         if ( file_exists( $dir . '/block.json' ) ) {
             register_block_type( $dir );
         }
+    }
+
+    public function classic_editor_for_ads( bool $use, string $post_type ): bool {
+        return self::POST_TYPE === $post_type ? (bool) apply_filters( 'ace_ads_use_block_editor', false ) : $use;
     }
 
     /**
@@ -189,13 +203,14 @@ final class Ace_Ads_Manager {
         if ( 'publish' !== get_post_status( $ad_id ) ) {
             return false;
         }
-        $now   = $now ?? (int) current_time( 'timestamp' );
-        $start = get_post_meta( $ad_id, self::META_START, true );
-        $end   = get_post_meta( $ad_id, self::META_END, true );
-        if ( $start && strtotime( $start ) > $now ) {
+        // Dates are stored in the site time zone (datetime-local input); compare in UTC.
+        $now   = $now ?? time();
+        $start = (string) get_post_meta( $ad_id, self::META_START, true );
+        $end   = (string) get_post_meta( $ad_id, self::META_END, true );
+        if ( $start && (int) get_gmt_from_date( str_replace( 'T', ' ', $start ), 'U' ) > $now ) {
             return false;
         }
-        if ( $end && strtotime( $end ) < $now ) {
+        if ( $end && (int) get_gmt_from_date( str_replace( 'T', ' ', $end ), 'U' ) < $now ) {
             return false;
         }
         return (bool) apply_filters( 'ace_ads_is_live', true, $ad_id );

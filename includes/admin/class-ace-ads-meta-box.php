@@ -63,7 +63,7 @@ final class Ace_Ads_Meta_Box {
         };
         $image_mode = $meta( Ace_Ads_Manager::META_IMAGE_MODE ) ?: 'background';
         ?>
-        <p class="description"><?php esc_html_e( 'The ad title is the headline; the editor content above is the copy. The featured image is optional and used as a background by default.', 'ace-ads-manager' ); ?></p>
+        <p class="description"><?php esc_html_e( 'The ad title is the headline; the editor content above is the copy. The featured image is optional and used as a background by default. An ad is live when it is published and inside its start/end window.', 'ace-ads-manager' ); ?> <a href="<?php echo esc_url( Ace_Ads_Manager_Admin::url( 'guide', 'guide-ads' ) ); ?>" target="_blank"><?php esc_html_e( 'Guide', 'ace-ads-manager' ); ?></a></p>
         <table class="form-table" role="presentation">
             <tr>
                 <th><label for="ace-ad-offer-code"><?php esc_html_e( 'Offer code', 'ace-ads-manager' ); ?></label></th>
@@ -86,6 +86,17 @@ final class Ace_Ads_Meta_Box {
                 <td><input type="datetime-local" id="ace-ad-end" name="ace_ad[end]" value="<?php echo esc_attr( $meta( Ace_Ads_Manager::META_END ) ); ?>"> <span class="description"><?php esc_html_e( 'Leave empty to run until unpublished.', 'ace-ads-manager' ); ?></span></td>
             </tr>
             <tr>
+                <th><label for="ace-ad-rel"><?php esc_html_e( 'Link rel', 'ace-ads-manager' ); ?></label></th>
+                <td>
+                    <select id="ace-ad-rel" name="ace_ad[rel]">
+                        <option value="" <?php selected( $meta( Ace_Ads_Manager::META_REL ), '' ); ?>><?php esc_html_e( 'Site default', 'ace-ads-manager' ); ?></option>
+                        <option value="nofollow" <?php selected( $meta( Ace_Ads_Manager::META_REL ), 'nofollow' ); ?>><?php esc_html_e( 'nofollow sponsored', 'ace-ads-manager' ); ?></option>
+                        <option value="follow" <?php selected( $meta( Ace_Ads_Manager::META_REL ), 'follow' ); ?>><?php esc_html_e( 'Follow (no nofollow)', 'ace-ads-manager' ); ?></option>
+                    </select>
+                    <span class="description"><?php esc_html_e( 'Paid placements should stay nofollow sponsored.', 'ace-ads-manager' ); ?></span>
+                </td>
+            </tr>
+            <tr>
                 <th><label for="ace-ad-image-mode"><?php esc_html_e( 'Image', 'ace-ads-manager' ); ?></label></th>
                 <td>
                     <select id="ace-ad-image-mode" name="ace_ad[image_mode]">
@@ -102,7 +113,7 @@ final class Ace_Ads_Meta_Box {
     public function render_rules( WP_Post $post ): void {
         $rules = (array) get_post_meta( $post->ID, Ace_Ads_Manager::META_RULES, true );
         ?>
-        <p class="description"><?php esc_html_e( 'Each rule places this ad into a slot when every target on the rule matches. The Ad block resolves the slot wherever it sits; the in-content slot is injected automatically on the post types chosen in settings.', 'ace-ads-manager' ); ?></p>
+        <p class="description"><?php esc_html_e( 'Each rule places this ad into a slot when every target on the rule matches (values within one target are "any of", separate targets are "all of"). Highest priority wins, then the more specific rule. The Ad block resolves the slot wherever it sits; the in-content slot is injected automatically on the post types chosen in settings.', 'ace-ads-manager' ); ?> <a href="<?php echo esc_url( Ace_Ads_Manager_Admin::url( 'guide', 'guide-rules' ) ); ?>" target="_blank"><?php esc_html_e( 'Read the placement rules guide', 'ace-ads-manager' ); ?></a></p>
         <div id="ace-ad-rules-app" class="ace-ad-rules"></div>
         <textarea id="ace-ad-rules-json" name="ace_ad_rules_json" class="ace-ad-rules-json" rows="4" hidden><?php echo esc_textarea( wp_json_encode( array_values( $rules ) ) ); ?></textarea>
         <p><a href="#" class="ace-ad-rules-toggle-json"><?php esc_html_e( 'Edit as JSON', 'ace-ads-manager' ); ?></a></p>
@@ -124,6 +135,7 @@ final class Ace_Ads_Meta_Box {
             'start'      => [ Ace_Ads_Manager::META_START, [ __CLASS__, 'sanitise_datetime' ] ],
             'end'        => [ Ace_Ads_Manager::META_END, [ __CLASS__, 'sanitise_datetime' ] ],
             'image_mode' => [ Ace_Ads_Manager::META_IMAGE_MODE, [ __CLASS__, 'sanitise_image_mode' ] ],
+            'rel'        => [ Ace_Ads_Manager::META_REL, [ __CLASS__, 'sanitise_rel' ] ],
         ];
         foreach ( $map as $field => [ $key, $sanitiser ] ) {
             $value = call_user_func( $sanitiser, (string) ( $fields[ $field ] ?? '' ) );
@@ -142,6 +154,10 @@ final class Ace_Ads_Meta_Box {
     public static function sanitise_datetime( string $value ): string {
         $value = sanitize_text_field( $value );
         return ( $value && strtotime( $value ) ) ? gmdate( 'Y-m-d\TH:i', strtotime( $value ) ) : '';
+    }
+
+    public static function sanitise_rel( string $value ): string {
+        return in_array( $value, [ 'nofollow', 'follow' ], true ) ? $value : '';
     }
 
     public static function sanitise_image_mode( string $value ): string {
@@ -183,7 +199,7 @@ final class Ace_Ads_Meta_Box {
                 $rules = (array) get_post_meta( $post_id, Ace_Ads_Manager::META_RULES, true );
                 printf(
                     '<a href="%s">%s</a>',
-                    esc_url( admin_url( 'edit.php?post_type=ace_ad&page=ace-ads-overview&ad=' . $post_id ) ),
+                    esc_url( Ace_Ads_Overview::url( $post_id ) ),
                     esc_html( sprintf( _n( '%d rule', '%d rules', count( $rules ), 'ace-ads-manager' ), count( $rules ) ) )
                 );
                 break;

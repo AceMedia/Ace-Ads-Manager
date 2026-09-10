@@ -231,9 +231,9 @@ final class Ace_Ads_Rules {
             'suppress_filters' => false,
         ] );
         foreach ( $ads as $ad_id ) {
-            foreach ( (array) get_post_meta( $ad_id, Ace_Ads_Manager::META_RULES, true ) as $rule ) {
+            foreach ( (array) get_post_meta( $ad_id, Ace_Ads_Manager::META_RULES, true ) as $index => $rule ) {
                 if ( ( $rule['slot'] ?? '' ) === $slot ) {
-                    $found[] = [ 'ad_id' => (int) $ad_id, 'rule' => $rule ];
+                    $found[] = [ 'ad_id' => (int) $ad_id, 'rule' => $rule, 'index' => (int) $index ];
                 }
             }
         }
@@ -244,7 +244,7 @@ final class Ace_Ads_Rules {
     /**
      * Pick the ad for a slot: highest priority, then most specific, then newest.
      *
-     * @return array{ad_id:int, rule:array}|null
+     * @return array{ad_id:int, rule:array, index:int}|null
      */
     public static function resolve( string $slot, array $context ): ?array {
         $best = null;

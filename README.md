@@ -33,7 +33,24 @@ npm run build
 
 Plugin-specific hooks are documented in the source next to each `apply_filters` / `do_action`.
 
+## Where things are
+
+- **Ads** (top-level menu): the ads themselves, with Offer and Placement rules boxes on the edit screen.
+- **Settings → Ads Manager**: Placements (every rule, what-shows-where preview), Analytics, Slots, Rendering, Tracking, Guide.
+
+## Tracking data
+
+- `{prefix}ace_ads_events`: one row per event (impression | viewable | click) with ad, slot, rule index (-1 = pinned), post, view type, post type, primary term, device, referrer host, hashed visitor, page view id, timestamp. Pruned nightly after the retention period.
+- `{prefix}ace_ads_daily`: roll-up per day × ad × slot × rule × post × device with impressions, viewable and clicks. Kept indefinitely; this is what the Analytics tab and CSV export read.
+- Beacon endpoint: `POST /wp-json/ace-ads/v1/events`. Filter `ace_ads_track_event` to drop or adjust an event; actions `ace_ads_event` and `ace_ads_click`.
+
 ## Changelog
+
+### 0.2.0
+- Tracking rebuilt to Flashtalking-level detail: impressions, viewable impressions (IAB 50%/1s), clicks, per ad × rule × slot × page × device × day, unique visitors, referrer host. Raw events table (pruned after the retention period) plus a daily roll-up kept for good. Bot, headless and logged-in filtering, per-page-view de-duplication, rate limiting.
+- **Settings → Ads Manager** now holds Placements, Analytics (with CSV export), Slots, Rendering, Tracking and Guide. Ads themselves stay under the Ads menu.
+- Ad edit screen uses the classic editor so the Offer and Placement rules boxes sit under the copy; per-ad link rel; term chips show names.
+- Rendered ads carry `data-ace-rule` so pinned and rule-placed impressions are attributed separately; new-tab and minimum-paragraph settings; start/end window compared in the site time zone.
 
 ### 0.1.0
 - Initial scaffold: settings page, options store, build tooling.
