@@ -6,7 +6,7 @@
  * A rule: [
  *   'slot'             => 'top',
  *   'priority'         => 10,
- *   'targets'          => [ [ 'type' => 'taxonomy_term', 'values' => [ 'category:12' ] ], ... ],  // AND across targets, OR within values
+ *   'targets'          => [ [ 'type' => 'taxonomy_term', 'values' => [ 'category:12' ], 'negate' => false ], ... ],  // AND across targets, OR within values; negate = "except
  *   'loop_index'       => '',      // '' any | '3' third item in a loop | '3n' every third
  *   'parent_block'     => '',      // e.g. core/group, core/query
  *   'after_paragraphs' => 0,       // in-content slot only; 0 = plugin default
@@ -54,7 +54,7 @@ final class Ace_Ads_Rules {
                 $values = array_values( array_filter( array_map( static function ( $v ) {
                     return preg_replace( '/[^a-z0-9_\-:]/i', '', (string) $v );
                 }, (array) ( $target['values'] ?? [] ) ) ) );
-                $targets[] = [ 'type' => $type, 'values' => $values ];
+                $targets[] = [ 'type' => $type, 'values' => $values, 'negate' => ! empty( $target['negate'] ) ];
             }
             $slot = sanitize_key( $rule['slot'] ?? '' );
             if ( '' === $slot ) {
@@ -202,7 +202,8 @@ final class Ace_Ads_Rules {
             }
         }
         foreach ( $rule['targets'] as $target ) {
-            if ( ! self::target_matches( $target, $context ) ) {
+            $hit = self::target_matches( $target, $context );
+            if ( ! empty( $target['negate'] ) ? $hit : ! $hit ) {
                 return false;
             }
         }
@@ -263,7 +264,7 @@ final class Ace_Ads_Rules {
     private static function specificity( array $rule ): int {
         $score = 0;
         foreach ( $rule['targets'] as $target ) {
-            $score += 'everywhere' === $target['type'] ? 0 : 10 + count( $target['values'] );
+            $score += 'everywhere' === $target['type'] ? 0 : ( ! empty( $target['negate'] ) ? 5 : 10 + count( $target['values'] ) );
         }
         $score += '' !== $rule['loop_index'] ? 5 : 0;
         $score += '' !== $rule['parent_block'] ? 5 : 0;
@@ -293,7 +294,7 @@ final class Ace_Ads_Rules {
                     $values[] = $value;
                 }
             }
-            $parts[] = $label . ( $values ? ': ' . implode( ', ', $values ) : '' );
+            $parts[] = ( ! empty( $target['negate'] ) ? __( 'except', 'ace-ads-manager' ) . ' ' : '' ) . $label . ( $values ? ': ' . implode( ', ', $values ) : '' );
         }
         if ( '' !== $rule['loop_index'] ) {
             $parts[] = sprintf( __( 'loop item %s', 'ace-ads-manager' ), $rule['loop_index'] );

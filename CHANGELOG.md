@@ -2,6 +2,12 @@
 
 Plain-English record of what changed in each release. Dates are when the version was pushed.
 
+## 0.3.0 - 10 September 2026
+- "Except" on any target, for everywhere-except-this-category rules.
+- Image-only banner format: the featured image is the whole ad, linked, for the old pasted banners.
+- Ad block in the Site Editor explains that it resolves per page instead of showing an empty box.
+- Paddy Power News: ad clicks now land in the bet click log with byline or automation attribution (pinned block = author, rule = automation).
+
 ## 0.2.2 - 10 September 2026
 - A settings save now takes effect immediately in the same request.
 

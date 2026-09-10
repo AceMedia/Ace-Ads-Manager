@@ -104,6 +104,13 @@ final class Ace_Ads_Render {
         $style = ( $image && 'background' === $image_mode ) ? ' style="--ace-ad-image:url(' . esc_url( $image ) . ')"' : '';
 
         $html  = '<aside class="' . esc_attr( implode( ' ', $classes ) ) . '" data-ace-ad="' . (int) $ad_id . '" data-ace-slot="' . esc_attr( $slot ) . '" data-ace-rule="' . $rule_index . '"' . $style . ' aria-label="' . esc_attr__( 'Advertisement', 'ace-ads-manager' ) . '">';
+        if ( $image && 'only' === $image_mode ) {
+            // Image-only banner: the picture is the ad, the headline is its alt text.
+            $img   = '<img class="ace-ad__image" src="' . esc_url( $image ) . '" alt="' . esc_attr( get_the_title( $ad ) ) . '" loading="lazy" decoding="async">';
+            $html .= $link ? '<a class="ace-ad__image-link" href="' . esc_url( $link ) . '" rel="' . esc_attr( $rel ) . '"' . $target . '>' . $img . '</a>' : $img;
+            $html .= '</aside>';
+            return (string) apply_filters( 'ace_ads_render_html', $html, $ad_id, $slot, $context );
+        }
         if ( $image && 'above' === $image_mode ) {
             $html .= '<img class="ace-ad__image" src="' . esc_url( $image ) . '" alt="" loading="lazy" decoding="async">';
         }

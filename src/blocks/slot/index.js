@@ -45,7 +45,11 @@ function Edit( { attributes, setAttributes, context } ) {
 			</InspectorControls>
 			<div { ...blockProps }>
 				<span className="ace-ad-slot-editor__label">{ __( 'Ad slot', 'ace-ads-manager' ) }: { CFG.slots[ slot ] || slot }</span>
-				<ServerSideRender block="ace-ads/slot" attributes={ attributes } urlQueryArgs={ { post_id: context.postId } } EmptyResponsePlaceholder={ () => <p className="ace-ad-slot-editor__empty">{ __( 'No ad resolves here right now.', 'ace-ads-manager' ) }</p> } />
+				{ ! context.postId && ! adId ? (
+					<p className="ace-ad-slot-editor__empty">{ __( 'Resolved per page on the front end: the rules see the post, archive or term this template renders.', 'ace-ads-manager' ) }</p>
+				) : (
+					<ServerSideRender block="ace-ads/slot" attributes={ attributes } urlQueryArgs={ { post_id: context.postId } } EmptyResponsePlaceholder={ () => <p className="ace-ad-slot-editor__empty">{ __( 'No ad resolves here right now.', 'ace-ads-manager' ) }</p> } />
+				) }
 			</div>
 		</>
 	);

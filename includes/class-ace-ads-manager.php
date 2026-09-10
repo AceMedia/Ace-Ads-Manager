@@ -142,6 +142,7 @@ final class Ace_Ads_Manager {
                                     'properties' => [
                                         'type'   => [ 'type' => 'string' ],
                                         'values' => [ 'type' => 'array', 'items' => [ 'type' => 'string' ] ],
+                                        'negate' => [ 'type' => 'boolean' ],
                                     ],
                                 ],
                             ],

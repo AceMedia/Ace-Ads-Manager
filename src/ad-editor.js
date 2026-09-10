@@ -84,6 +84,7 @@ function OfferPanel() {
 					options={ [
 						{ value: 'background', label: __( 'Background behind the copy', 'ace-ads-manager' ) },
 						{ value: 'above', label: __( 'Above the copy', 'ace-ads-manager' ) },
+						{ value: 'only', label: __( 'Image only (banner)', 'ace-ads-manager' ) },
 						{ value: 'none', label: __( 'Do not show', 'ace-ads-manager' ) },
 					] }
 					onChange={ ( v ) => set( META.image, v ) }
@@ -199,6 +200,7 @@ function RuleCard( { rule, index, update, remove } ) {
 					{ rule.targets.map( ( target, i ) => (
 						<VStack key={ i } spacing={ 2 } className="ace-ad-target">
 							<HStack>
+								<CheckboxControl label={ __( 'Except', 'ace-ads-manager' ) } checked={ !! target.negate } onChange={ ( v ) => setTarget( i, { negate: v } ) } __nextHasNoMarginBottom />
 								<SelectControl value={ target.type } options={ types } onChange={ ( v ) => setTarget( i, { type: v, values: [] } ) } __nextHasNoMarginBottom />
 								<Button size="small" variant="tertiary" isDestructive onClick={ () => update( { ...rule, targets: rule.targets.length > 1 ? rule.targets.filter( ( _, j ) => j !== i ) : [ { type: 'everywhere', values: [] } ] } ) }>{ __( 'Remove', 'ace-ads-manager' ) }</Button>
 							</HStack>

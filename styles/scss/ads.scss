@@ -32,6 +32,20 @@
 		height: auto;
 	}
 
+	&--image-only {
+		background: none;
+		border-radius: 0;
+
+		.ace-ad__image-link {
+			display: block;
+			line-height: 0;
+		}
+
+		.ace-ad__image {
+			border-radius: var(--ace-ad-radius);
+		}
+	}
+
 	&__body {
 		padding: 1.25rem 1.5rem;
 	}

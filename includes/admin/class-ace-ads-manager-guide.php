@@ -35,7 +35,7 @@ final class Ace_Ads_Manager_Guide {
 <table>
 <tr><th>Title</th><td>The headline shown on the ad</td></tr>
 <tr><th>Content</th><td>The copy. Keep it to a sentence or two; the terms link can live here</td></tr>
-<tr><th>Featured image</th><td>Optional. Background behind the copy (default), above the copy, or hidden</td></tr>
+<tr><th>Featured image</th><td>Optional. Background behind the copy (default), above the copy, image only (the picture is the whole ad, linked), or hidden</td></tr>
 <tr><th>Offer code</th><td>Shown as "Code: XXXX" when set</td></tr>
 <tr><th>Link</th><td>Where the call to action goes. No link, no button</td></tr>
 <tr><th>Call to action</th><td>Button label; falls back to the default from the Rendering tab</td></tr>
@@ -59,6 +59,7 @@ final class Ace_Ads_Manager_Guide {
 <tr><th>Specific posts</th><td>By id</td></tr>
 <tr><th>Author archive</th><td>Optionally limited to author ids</td></tr>
 </table>
+<p>Tick <strong>Except</strong> on a target to invert it: a rule with "Everywhere" plus "Except Term: Football" shows the ad everywhere but football.</p>
 <p><strong>Loop item</strong> targets a position inside a Query Loop: <code>3</code> is the third card only, <code>3n</code> is every third. The Ad block must sit inside the loop\'s Post Template for this to apply.</p>
 <p><strong>Inside block</strong> restricts the rule to Ad blocks whose direct parent is that block, e.g. <code>core/group</code> or a sidebar template part. Handy when the same slot name is used in two places.</p>
 <p><strong>Priority</strong> decides between competing ads: highest wins, then the more specific rule (more targets, more values), then the newest ad. Use 10 for normal rules, 1 for fallbacks, 100 for a takeover.</p>',
