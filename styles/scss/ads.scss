@@ -1,0 +1,73 @@
+/**
+ * Front-end ad styles. Deliberately minimal and theme-neutral; themes override
+ * via the custom properties or the .ace-ad classes.
+ */
+.ace-ad {
+	--ace-ad-bg: var(--wp--preset--color--tertiary, #f3f4f6);
+	--ace-ad-fg: var(--wp--preset--color--contrast, #111);
+	--ace-ad-accent: var(--wp--preset--color--primary, #0a7d4b);
+	--ace-ad-radius: 8px;
+
+	position: relative;
+	overflow: hidden;
+	border-radius: var(--ace-ad-radius);
+	background: var(--ace-ad-bg);
+	color: var(--ace-ad-fg);
+	margin: 1.5em 0;
+
+	&--image-background {
+		background-image: var(--ace-ad-image);
+		background-size: cover;
+		background-position: center;
+
+		.ace-ad__body {
+			background: linear-gradient(90deg, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.35));
+			color: #fff;
+		}
+	}
+
+	&__image {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+
+	&__body {
+		padding: 1.25rem 1.5rem;
+	}
+
+	&__title {
+		margin: 0 0 0.5rem;
+		font-size: 1.25rem;
+		line-height: 1.2;
+	}
+
+	&__copy {
+		margin: 0 0 0.75rem;
+
+		p:last-child {
+			margin-bottom: 0;
+		}
+	}
+
+	&__code {
+		margin: 0 0 0.75rem;
+		font-size: 0.9em;
+	}
+
+	&__cta {
+		display: inline-block;
+		padding: 0.6em 1.2em;
+		border-radius: 999px;
+		background: var(--ace-ad-accent);
+		color: #fff;
+		font-weight: 600;
+		text-decoration: none;
+
+		&:hover,
+		&:focus-visible {
+			filter: brightness(1.1);
+			text-decoration: none;
+		}
+	}
+}

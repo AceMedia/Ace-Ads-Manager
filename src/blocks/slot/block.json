@@ -1,0 +1,25 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "ace-ads/slot",
+	"version": "0.1.0",
+	"title": "Ad",
+	"category": "widgets",
+	"icon": "megaphone",
+	"description": "An ad slot. Leave the ad on \"resolve by rules\" and placement rules decide which ad shows here, or pin one ad.",
+	"keywords": [ "ad", "offer", "promotion", "ace" ],
+	"textdomain": "ace-ads-manager",
+	"attributes": {
+		"slot": { "type": "string", "default": "top" },
+		"adId": { "type": "integer", "default": 0 }
+	},
+	"usesContext": [ "postId", "postType", "queryId" ],
+	"supports": {
+		"align": [ "wide", "full" ],
+		"html": false,
+		"spacing": { "margin": true }
+	},
+	"editorScript": "file:./index.js",
+	"editorStyle": "file:./editor.css",
+	"render": "file:./render.php"
+}
