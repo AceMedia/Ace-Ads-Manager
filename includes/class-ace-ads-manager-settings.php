@@ -238,6 +238,14 @@ final class Ace_Ads_Manager_Settings {
         return array_values( array_unique( $lines ) );
     }
 
+    /**
+     * Change some settings from code without touching the rest (update() treats a
+     * missing checkbox as unticked, which is right for the form but not for scripts).
+     */
+    public static function patch( array $changes ): array {
+        return self::update( array_merge( self::all(), $changes ) );
+    }
+
     public static function update( array $raw ): array {
         $clean = self::sanitise( $raw );
         update_option( self::OPTION, $clean, false );
