@@ -14,6 +14,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Ace_Ads_Manager_Settings {
 
+    /** @var array|null Per-request cache of the merged options; cleared on update(). */
+    private static $cache = null;
+
     const OPTION = 'ace_ads_options';
 
     /**
@@ -213,12 +216,11 @@ final class Ace_Ads_Manager_Settings {
     }
 
     public static function all(): array {
-        static $cache = null;
-        if ( null === $cache ) {
-            $stored = get_option( self::OPTION, [] );
-            $cache  = wp_parse_args( is_array( $stored ) ? $stored : [], self::defaults() );
+        if ( null === self::$cache ) {
+            $stored      = get_option( self::OPTION, [] );
+            self::$cache = wp_parse_args( is_array( $stored ) ? $stored : [], self::defaults() );
         }
-        return $cache;
+        return self::$cache;
     }
 
     public static function get( string $key, $fallback = null ) {
@@ -239,6 +241,7 @@ final class Ace_Ads_Manager_Settings {
     public static function update( array $raw ): array {
         $clean = self::sanitise( $raw );
         update_option( self::OPTION, $clean, false );
+        self::$cache = null;
         update_option( 'ace_ads_version', ACE_ADS_VERSION, false );
         do_action( 'ace_ads_settings_saved', $clean );
         return $clean;

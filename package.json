@@ -1,6 +1,6 @@
 {
   "name": "ace-ads-manager",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "Central ads with placement rules. One Ad block, targeted by archive, term, post type, loop position or parent block.",
   "license": "GPL-2.0-or-later",

@@ -131,7 +131,40 @@ wp ace-ads replace --pattern=\'&lt;the pasted markup&gt;\' --ad=12 --slot=in-con
 </table>',
             ],
         ];
+        $sections['changelog'] = [
+            'title'   => __( "What's new", 'ace-ads-manager' ),
+            'icon'    => 'megaphone',
+            'content' => self::changelog_html(),
+        ];
         return apply_filters( 'ace_ads_guide_sections', $sections );
+    }
+
+    /**
+     * CHANGELOG.md as HTML (headings, bullets, paragraphs only).
+     */
+    public static function changelog_html(): string {
+        $file = ACE_ADS_PATH . 'CHANGELOG.md';
+        if ( ! file_exists( $file ) ) {
+            return '';
+        }
+        $html = '';
+        $list = false;
+        foreach ( file( $file, FILE_IGNORE_NEW_LINES ) as $line ) {
+            if ( 0 === strpos( $line, '# ' ) ) {
+                continue;
+            }
+            if ( 0 === strpos( $line, '## ' ) ) {
+                $html .= ( $list ? '</ul>' : '' ) . '<h4>' . esc_html( substr( $line, 3 ) ) . '</h4>';
+                $list  = false;
+            } elseif ( 0 === strpos( $line, '- ' ) ) {
+                $html .= ( $list ? '' : '<ul>' ) . '<li>' . esc_html( substr( $line, 2 ) ) . '</li>';
+                $list  = true;
+            } elseif ( '' !== trim( $line ) ) {
+                $html .= ( $list ? '</ul>' : '' ) . '<p>' . esc_html( $line ) . '</p>';
+                $list  = false;
+            }
+        }
+        return $html . ( $list ? '</ul>' : '' );
     }
 
     public static function render(): void {
