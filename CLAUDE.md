@@ -48,4 +48,7 @@ WordPress Playground MCP.
   `Ace_Ads_Render::context_for()` and never written back.
 - Parent-block detection is a render stack (`render_block_data` push, `render_block` pop). It only knows about
   block-rendered ancestors, not PHP template wrappers.
+- The Ad edit screen is the block editor; `src/ad-editor.js` registers two `PluginDocumentSettingPanel`s that edit
+  post meta via `useEntityProp`. `_ace_ad_rules` has a full REST schema in `register_meta()` - extend it when a rule
+  gains a key or the editor will refuse to save.
 - Settings class is `Ace_Ads_Manager_Settings` (prefix `ace_ads`, class prefix `Ace_Ads_Manager`).

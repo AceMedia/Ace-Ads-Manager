@@ -35,7 +35,7 @@ Plugin-specific hooks are documented in the source next to each `apply_filters` 
 
 ## Where things are
 
-- **Ads** (top-level menu): the ads themselves, with Offer and Placement rules boxes on the edit screen.
+- **Ads** (top-level menu): the ads themselves, with Offer and Placement rules panels in the editor sidebar.
 - **Settings → Ads Manager**: Placements (every rule, what-shows-where preview), Analytics, Slots, Rendering, Tracking, Guide.
 
 ## Tracking data
@@ -46,10 +46,13 @@ Plugin-specific hooks are documented in the source next to each `apply_filters` 
 
 ## Changelog
 
+### 0.2.1
+- Ad edit screen back on the block editor: Offer and Placement rules are sidebar panels saving post meta over REST.
+
 ### 0.2.0
 - Tracking rebuilt to Flashtalking-level detail: impressions, viewable impressions (IAB 50%/1s), clicks, per ad × rule × slot × page × device × day, unique visitors, referrer host. Raw events table (pruned after the retention period) plus a daily roll-up kept for good. Bot, headless and logged-in filtering, per-page-view de-duplication, rate limiting.
 - **Settings → Ads Manager** now holds Placements, Analytics (with CSV export), Slots, Rendering, Tracking and Guide. Ads themselves stay under the Ads menu.
-- Ad edit screen uses the classic editor so the Offer and Placement rules boxes sit under the copy; per-ad link rel; term chips show names.
+- Ad edit screen gains Offer and Placement rules panels in the block editor sidebar (post meta over REST); per-ad link rel; term and post pickers search by name.
 - Rendered ads carry `data-ace-rule` so pinned and rule-placed impressions are attributed separately; new-tab and minimum-paragraph settings; start/end window compared in the site time zone.
 
 ### 0.1.0

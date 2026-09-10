@@ -3,7 +3,7 @@
  * Plugin Name: Ace Ads Manager
  * Plugin URI: https://github.com/AceMedia/Ace-Ads-Manager
  * Description: Central ads with placement rules. One Ad block, targeted by archive, term, post type, loop position or parent block.
- * Version: 0.2.0
+ * Version: 0.2.1
  * Author: AceMedia
  * Author URI: https://acemedia.ninja
  * Text Domain: ace-ads-manager
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Bump on every release: drives asset cache-busting and the options migration check.
-define( 'ACE_ADS_VERSION', '0.2.0' );
+define( 'ACE_ADS_VERSION', '0.2.1' );
 define( 'ACE_ADS_FILE', __FILE__ );
 define( 'ACE_ADS_PATH', plugin_dir_path( __FILE__ ) );
 define( 'ACE_ADS_URL', plugin_dir_url( __FILE__ ) );

@@ -47,9 +47,6 @@ final class Ace_Ads_Manager {
         add_action( 'init', [ $this, 'register_meta' ] );
         add_action( 'init', [ $this, 'register_block' ] );
         add_action( 'enqueue_block_editor_assets', [ $this, 'block_editor_config' ] );
-        // Ads are a headline and a sentence of copy: the classic editor keeps the offer
-        // fields and placement rules directly under the copy instead of folded away.
-        add_filter( 'use_block_editor_for_post_type', [ $this, 'classic_editor_for_ads' ], 10, 2 );
 
         add_action( 'save_post_' . self::POST_TYPE, [ $this, 'bump_version' ] );
         add_action( 'deleted_post', [ $this, 'bump_version_on_delete' ], 10, 2 );
@@ -101,7 +98,7 @@ final class Ace_Ads_Manager {
             'show_in_rest'        => true,
             'menu_icon'           => 'dashicons-megaphone',
             'menu_position'       => 26,
-            'supports'            => [ 'title', 'editor', 'thumbnail', 'revisions', 'author' ],
+            'supports'            => [ 'title', 'editor', 'thumbnail', 'revisions', 'author', 'custom-fields' ], // custom-fields: REST exposes registered meta only with it.
             'capability_type'     => 'post',
             'map_meta_cap'        => true,
             'exclude_from_search' => true,
@@ -130,7 +127,32 @@ final class Ace_Ads_Manager {
         register_post_meta( self::POST_TYPE, self::META_RULES, [
             'type'              => 'array',
             'single'            => true,
-            'show_in_rest'      => [ 'schema' => [ 'type' => 'array', 'items' => [ 'type' => 'object', 'additionalProperties' => true ] ] ],
+            'show_in_rest'      => [
+                'schema' => [
+                    'type'  => 'array',
+                    'items' => [
+                        'type'       => 'object',
+                        'properties' => [
+                            'slot'             => [ 'type' => 'string' ],
+                            'priority'         => [ 'type' => 'integer' ],
+                            'targets'          => [
+                                'type'  => 'array',
+                                'items' => [
+                                    'type'       => 'object',
+                                    'properties' => [
+                                        'type'   => [ 'type' => 'string' ],
+                                        'values' => [ 'type' => 'array', 'items' => [ 'type' => 'string' ] ],
+                                    ],
+                                ],
+                            ],
+                            'loop_index'       => [ 'type' => 'string' ],
+                            'parent_block'     => [ 'type' => 'string' ],
+                            'after_paragraphs' => [ 'type' => 'integer' ],
+                        ],
+                    ],
+                ],
+            ],
+            'default'           => [],
             'sanitize_callback' => [ 'Ace_Ads_Rules', 'sanitise_rules' ],
             'auth_callback'     => static function () {
                 return current_user_can( 'edit_posts' );
@@ -143,10 +165,6 @@ final class Ace_Ads_Manager {
         if ( file_exists( $dir . '/block.json' ) ) {
             register_block_type( $dir );
         }
-    }
-
-    public function classic_editor_for_ads( bool $use, string $post_type ): bool {
-        return self::POST_TYPE === $post_type ? (bool) apply_filters( 'ace_ads_use_block_editor', false ) : $use;
     }
 
     /**

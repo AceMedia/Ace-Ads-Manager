@@ -1,20 +1,41 @@
 /**
- * Placement rules editor on the Ad edit screen. Keeps the rules array in the
- * hidden JSON field that the meta box saves; the UI is a thin editor over it.
+ * Ad edit screen (block editor): Offer and Placement rules panels in the
+ * document sidebar, saving straight to post meta over REST.
  */
-const CFG = window.ace_ads_editor || {};
+import { registerPlugin } from '@wordpress/plugins';
+import { PluginDocumentSettingPanel } from '@wordpress/editor';
+import { useEntityProp } from '@wordpress/core-data';
+import { useSelect } from '@wordpress/data';
+import { useState, useMemo } from '@wordpress/element';
+import { __, sprintf } from '@wordpress/i18n';
+import {
+	TextControl,
+	SelectControl,
+	CheckboxControl,
+	Button,
+	ComboboxControl,
+	Notice,
+	__experimentalNumberControl as NumberControl,
+	__experimentalVStack as VStack,
+	__experimentalHStack as HStack,
+	__experimentalText as Text,
+	Card,
+	CardBody,
+	CardHeader,
+	CardFooter,
+	ExternalLink,
+} from '@wordpress/components';
 
-const el = ( tag, attrs = {}, children = [] ) => {
-	const node = document.createElement( tag );
-	Object.entries( attrs ).forEach( ( [ k, v ] ) => {
-		if ( k === 'class' ) node.className = v;
-		else if ( k.startsWith( 'on' ) ) node.addEventListener( k.slice( 2 ), v );
-		else if ( v !== null && v !== undefined && v !== false ) node.setAttribute( k, v === true ? '' : v );
-	} );
-	( Array.isArray( children ) ? children : [ children ] ).forEach( ( c ) => {
-		if ( c !== null && c !== undefined ) node.append( typeof c === 'string' ? document.createTextNode( c ) : c );
-	} );
-	return node;
+const CFG = window.ace_ads_editor || { slots: {}, target_types: {}, taxonomies: {}, post_types: {} };
+const META = {
+	code: '_ace_ad_offer_code',
+	link: '_ace_ad_link',
+	cta: '_ace_ad_cta',
+	start: '_ace_ad_start',
+	end: '_ace_ad_end',
+	rel: '_ace_ad_rel',
+	image: '_ace_ad_image_mode',
+	rules: '_ace_ad_rules',
 };
 
 const TYPES_WITH_VALUES = {
@@ -26,148 +47,203 @@ const TYPES_WITH_VALUES = {
 	author: 'free',
 };
 
-let rules = [];
-let jsonField;
-let root;
-const names = {};
+const restBase = ( taxonomy ) => ( { category: 'categories', post_tag: 'tags' }[ taxonomy ] || taxonomy );
 
-async function resolveName( value ) {
-	if ( names[ value ] || ! value.includes( ':' ) ) return;
-	const [ taxonomy, id ] = value.split( ':' );
-	names[ value ] = '…';
-	try {
-		const res = await fetch( `${ CFG.rest_url }wp/v2/${ taxonomyRestBase( taxonomy ) }/${ id }?_fields=name`, { headers: { 'X-WP-Nonce': CFG.nonce }, credentials: 'same-origin' } );
-		names[ value ] = res.ok ? `${ CFG.taxonomies[ taxonomy ] || taxonomy }: ${ ( await res.json() ).name }` : value;
-	} catch ( e ) {
-		names[ value ] = value;
-	}
-	render();
+function useMeta() {
+	const [ meta, setMeta ] = useEntityProp( 'postType', 'ace_ad', 'meta' );
+	const set = ( key, value ) => setMeta( { ...meta, [ key ]: value } );
+	return [ meta || {}, set ];
 }
 
-function newRule() {
-	return { slot: Object.keys( CFG.slots || {} )[ 0 ] || 'top', priority: 10, targets: [ { type: 'everywhere', values: [] } ], loop_index: '', parent_block: '', after_paragraphs: 0 };
+function OfferPanel() {
+	const [ meta, set ] = useMeta();
+	return (
+		<PluginDocumentSettingPanel name="ace-ad-offer" title={ __( 'Offer', 'ace-ads-manager' ) } className="ace-ad-offer-panel">
+			<VStack spacing={ 3 }>
+				<Text variant="muted">{ __( 'The title is the headline and the content is the copy. An ad is live when published and inside its window.', 'ace-ads-manager' ) } <ExternalLink href={ CFG.guide_url }>{ __( 'Guide', 'ace-ads-manager' ) }</ExternalLink></Text>
+				<TextControl label={ __( 'Offer code', 'ace-ads-manager' ) } value={ meta[ META.code ] || '' } onChange={ ( v ) => set( META.code, v ) } __nextHasNoMarginBottom />
+				<TextControl label={ __( 'Link', 'ace-ads-manager' ) } type="url" value={ meta[ META.link ] || '' } onChange={ ( v ) => set( META.link, v ) } help={ __( 'No link, no button.', 'ace-ads-manager' ) } __nextHasNoMarginBottom />
+				<TextControl label={ __( 'Call to action', 'ace-ads-manager' ) } value={ meta[ META.cta ] || '' } placeholder={ CFG.cta_default } onChange={ ( v ) => set( META.cta, v ) } __nextHasNoMarginBottom />
+				<TextControl label={ __( 'Start', 'ace-ads-manager' ) } type="datetime-local" value={ meta[ META.start ] || '' } onChange={ ( v ) => set( META.start, v ) } help={ __( 'Empty starts immediately.', 'ace-ads-manager' ) } __nextHasNoMarginBottom />
+				<TextControl label={ __( 'End', 'ace-ads-manager' ) } type="datetime-local" value={ meta[ META.end ] || '' } onChange={ ( v ) => set( META.end, v ) } help={ __( 'Empty runs until unpublished.', 'ace-ads-manager' ) } __nextHasNoMarginBottom />
+				<SelectControl
+					label={ __( 'Link rel', 'ace-ads-manager' ) }
+					value={ meta[ META.rel ] || '' }
+					options={ [
+						{ value: '', label: __( 'Site default', 'ace-ads-manager' ) },
+						{ value: 'nofollow', label: __( 'nofollow sponsored', 'ace-ads-manager' ) },
+						{ value: 'follow', label: __( 'Follow (no nofollow)', 'ace-ads-manager' ) },
+					] }
+					onChange={ ( v ) => set( META.rel, v ) }
+					help={ __( 'Paid placements should stay nofollow sponsored.', 'ace-ads-manager' ) }
+					__nextHasNoMarginBottom
+				/>
+				<SelectControl
+					label={ __( 'Featured image', 'ace-ads-manager' ) }
+					value={ meta[ META.image ] || 'background' }
+					options={ [
+						{ value: 'background', label: __( 'Background behind the copy', 'ace-ads-manager' ) },
+						{ value: 'above', label: __( 'Above the copy', 'ace-ads-manager' ) },
+						{ value: 'none', label: __( 'Do not show', 'ace-ads-manager' ) },
+					] }
+					onChange={ ( v ) => set( META.image, v ) }
+					__nextHasNoMarginBottom
+				/>
+			</VStack>
+		</PluginDocumentSettingPanel>
+	);
 }
 
-function sync() {
-	jsonField.value = JSON.stringify( rules );
+function TermPicker( { values, onChange } ) {
+	const taxonomies = Object.entries( CFG.taxonomies );
+	const [ taxonomy, setTaxonomy ] = useState( taxonomies[ 0 ]?.[ 0 ] || 'category' );
+	const [ search, setSearch ] = useState( '' );
+	const found = useSelect( ( select ) => {
+		if ( search.length < 2 ) return [];
+		return select( 'core' ).getEntityRecords( 'taxonomy', taxonomy, { search, per_page: 20, _fields: 'id,name' } ) || [];
+	}, [ taxonomy, search ] );
+	const chosen = useSelect( ( select ) => values.map( ( v ) => {
+		const [ tax, id ] = v.split( ':' );
+		const record = select( 'core' ).getEntityRecord( 'taxonomy', tax, parseInt( id, 10 ) );
+		return { value: v, label: record ? `${ CFG.taxonomies[ tax ] || tax }: ${ record.name }` : v };
+	} ), [ values ] );
+	return (
+		<VStack spacing={ 2 }>
+			{ chosen.map( ( c ) => (
+				<HStack key={ c.value } justify="space-between">
+					<Text>{ c.label }</Text>
+					<Button size="small" variant="tertiary" isDestructive onClick={ () => onChange( values.filter( ( v ) => v !== c.value ) ) }>{ __( 'Remove', 'ace-ads-manager' ) }</Button>
+				</HStack>
+			) ) }
+			<VStack spacing={ 1 }>
+				<SelectControl label={ __( 'Taxonomy', 'ace-ads-manager' ) } hideLabelFromVision value={ taxonomy } options={ taxonomies.map( ( [ value, label ] ) => ( { value, label } ) ) } onChange={ setTaxonomy } __nextHasNoMarginBottom />
+				<ComboboxControl
+					label={ __( 'Add term', 'ace-ads-manager' ) }
+					hideLabelFromVision
+					value={ null }
+					options={ found.map( ( t ) => ( { value: `${ taxonomy }:${ t.id }`, label: t.name } ) ) }
+					onFilterValueChange={ setSearch }
+					onChange={ ( v ) => { if ( v && ! values.includes( v ) ) onChange( [ ...values, v ] ); } }
+					placeholder={ __( 'Search…', 'ace-ads-manager' ) }
+					__nextHasNoMarginBottom
+				/>
+			</VStack>
+		</VStack>
+	);
 }
 
-async function searchTerms( taxonomy, term ) {
-	const url = `${ CFG.rest_url }wp/v2/${ taxonomyRestBase( taxonomy ) }?search=${ encodeURIComponent( term ) }&per_page=20&_fields=id,name`;
-	const res = await fetch( url, { headers: { 'X-WP-Nonce': CFG.nonce }, credentials: 'same-origin' } );
-	return res.ok ? res.json() : [];
+function PostPicker( { values, onChange } ) {
+	const [ search, setSearch ] = useState( '' );
+	const found = useSelect( ( select ) => {
+		if ( search.length < 2 ) return [];
+		return select( 'core' ).getEntityRecords( 'postType', 'post', { search, per_page: 20, _fields: 'id,title' } ) || [];
+	}, [ search ] );
+	return (
+		<VStack spacing={ 2 }>
+			{ values.map( ( v ) => (
+				<HStack key={ v } justify="space-between">
+					<Text>#{ v }</Text>
+					<Button size="small" variant="tertiary" isDestructive onClick={ () => onChange( values.filter( ( x ) => x !== v ) ) }>{ __( 'Remove', 'ace-ads-manager' ) }</Button>
+				</HStack>
+			) ) }
+			<ComboboxControl
+				label={ __( 'Add post', 'ace-ads-manager' ) }
+				hideLabelFromVision
+				value={ null }
+				options={ found.map( ( p ) => ( { value: String( p.id ), label: p.title?.rendered || `#${ p.id }` } ) ) }
+				onFilterValueChange={ setSearch }
+				onChange={ ( v ) => { if ( v && ! values.includes( v ) ) onChange( [ ...values, v ] ); } }
+				placeholder={ __( 'Search posts…', 'ace-ads-manager' ) }
+				__nextHasNoMarginBottom
+			/>
+		</VStack>
+	);
 }
 
-function taxonomyRestBase( taxonomy ) {
-	return { category: 'categories', post_tag: 'tags' }[ taxonomy ] || taxonomy;
-}
-
-function valuesEditor( target, onChange ) {
+function Values( { target, onChange } ) {
 	const kind = TYPES_WITH_VALUES[ target.type ];
-	if ( ! kind ) return el( 'span', { class: 'description' }, '' );
-
-	if ( kind === 'post_types' ) {
-		return el( 'span', { class: 'ace-ad-values' }, Object.entries( CFG.post_types ).map( ( [ v, label ] ) =>
-			el( 'label', {}, [ el( 'input', { type: 'checkbox', checked: target.values.includes( v ), onchange: ( e ) => { target.values = e.target.checked ? [ ...target.values, v ] : target.values.filter( ( x ) => x !== v ); onChange(); } } ), ` ${ label } ` ] )
-		) );
+	const toggle = ( v ) => onChange( target.values.includes( v ) ? target.values.filter( ( x ) => x !== v ) : [ ...target.values, v ] );
+	if ( kind === 'post_types' || kind === 'taxonomies' ) {
+		const source = kind === 'post_types' ? CFG.post_types : CFG.taxonomies;
+		return (
+			<VStack spacing={ 1 }>
+				{ Object.entries( source ).map( ( [ value, label ] ) => (
+					<CheckboxControl key={ value } label={ label } checked={ target.values.includes( value ) } onChange={ () => toggle( value ) } __nextHasNoMarginBottom />
+				) ) }
+			</VStack>
+		);
 	}
-	if ( kind === 'taxonomies' ) {
-		return el( 'span', { class: 'ace-ad-values' }, Object.entries( CFG.taxonomies ).map( ( [ v, label ] ) =>
-			el( 'label', {}, [ el( 'input', { type: 'checkbox', checked: target.values.includes( v ), onchange: ( e ) => { target.values = e.target.checked ? [ ...target.values, v ] : target.values.filter( ( x ) => x !== v ); onChange(); } } ), ` ${ label } ` ] )
-		) );
-	}
-	if ( kind === 'terms' ) {
-		const taxSelect = el( 'select', {}, Object.entries( CFG.taxonomies ).map( ( [ v, label ] ) => el( 'option', { value: v }, label ) ) );
-		const search = el( 'input', { type: 'search', placeholder: 'Search terms…' } );
-		const results = el( 'select', { size: 5, class: 'ace-ad-term-results', hidden: true } );
-		target.values.forEach( resolveName );
-		const chips = el( 'span', { class: 'ace-ad-chips' }, target.values.map( ( v ) => chip( names[ v ] || v, () => { target.values = target.values.filter( ( x ) => x !== v ); onChange(); } ) ) );
-		let timer;
-		search.addEventListener( 'input', () => {
-			clearTimeout( timer );
-			timer = setTimeout( async () => {
-				const found = await searchTerms( taxSelect.value, search.value );
-				found.forEach( ( t ) => { names[ `${ taxSelect.value }:${ t.id }` ] = `${ CFG.taxonomies[ taxSelect.value ] || taxSelect.value }: ${ t.name }`; } );
-				results.replaceChildren( ...found.map( ( t ) => el( 'option', { value: `${ taxSelect.value }:${ t.id }` }, t.name ) ) );
-				results.hidden = ! found.length;
-			}, 300 );
-		} );
-		results.addEventListener( 'change', () => {
-			if ( results.value && ! target.values.includes( results.value ) ) {
-				target.values = [ ...target.values, results.value ];
-				onChange();
-			}
-		} );
-		return el( 'span', { class: 'ace-ad-values ace-ad-values--terms' }, [ chips, taxSelect, search, results ] );
-	}
-	// posts / free: comma-separated ids
-	const input = el( 'input', { type: 'text', class: 'regular-text', value: target.values.join( ',' ), placeholder: kind === 'posts' ? 'Post ids, comma separated' : 'Ids, comma separated (empty = any)', onchange: ( e ) => { target.values = e.target.value.split( ',' ).map( ( s ) => s.trim() ).filter( Boolean ); onChange(); } } );
-	return el( 'span', { class: 'ace-ad-values' }, input );
+	if ( kind === 'terms' ) return <TermPicker values={ target.values } onChange={ onChange } />;
+	if ( kind === 'posts' ) return <PostPicker values={ target.values } onChange={ onChange } />;
+	if ( kind === 'free' ) return <TextControl label={ __( 'Author ids (empty = any)', 'ace-ads-manager' ) } value={ target.values.join( ',' ) } onChange={ ( v ) => onChange( v.split( ',' ).map( ( s ) => s.trim() ).filter( Boolean ) ) } __nextHasNoMarginBottom />;
+	return null;
 }
 
-function chip( label, onRemove ) {
-	return el( 'span', { class: 'ace-ad-chip' }, [ label, el( 'button', { type: 'button', class: 'ace-ad-chip__remove', 'aria-label': 'Remove', onclick: onRemove }, '×' ) ] );
-}
-
-function targetRow( rule, target, index ) {
-	const row = el( 'div', { class: 'ace-ad-target' } );
-	const typeSelect = el( 'select', { onchange: ( e ) => { target.type = e.target.value; target.values = []; sync(); render(); } }, Object.entries( CFG.target_types ).map( ( [ v, label ] ) => el( 'option', { value: v, selected: v === target.type }, label ) ) );
-	row.append(
-		typeSelect,
-		valuesEditor( target, () => { sync(); render(); } ),
-		el( 'button', { type: 'button', class: 'button-link-delete', onclick: () => { rule.targets.splice( index, 1 ); if ( ! rule.targets.length ) rule.targets.push( { type: 'everywhere', values: [] } ); sync(); render(); } }, 'Remove' )
-	);
-	return row;
-}
-
-function ruleCard( rule, index ) {
-	const slotSelect = el( 'select', { onchange: ( e ) => { rule.slot = e.target.value; sync(); render(); } }, Object.entries( CFG.slots ).map( ( [ v, label ] ) => el( 'option', { value: v, selected: v === rule.slot }, label ) ) );
-	const priority = el( 'input', { type: 'number', class: 'small-text', value: rule.priority, onchange: ( e ) => { rule.priority = parseInt( e.target.value, 10 ) || 0; sync(); } } );
-	const loop = el( 'input', { type: 'text', class: 'small-text', value: rule.loop_index, placeholder: 'e.g. 3 or 3n', onchange: ( e ) => { rule.loop_index = e.target.value.replace( /[^0-9n]/g, '' ); sync(); } } );
-	const parent = el( 'input', { type: 'text', class: 'regular-text', value: rule.parent_block, placeholder: 'e.g. core/group', onchange: ( e ) => { rule.parent_block = e.target.value.trim(); sync(); } } );
-	const after = el( 'input', { type: 'number', class: 'small-text', min: 0, value: rule.after_paragraphs, onchange: ( e ) => { rule.after_paragraphs = parseInt( e.target.value, 10 ) || 0; sync(); } } );
-
-	return el( 'div', { class: 'ace-ad-rule' }, [
-		el( 'div', { class: 'ace-ad-rule__head' }, [
-			el( 'label', {}, [ 'Slot ', slotSelect ] ),
-			el( 'label', {}, [ 'Priority ', priority ] ),
-			el( 'button', { type: 'button', class: 'button-link-delete', onclick: () => { rules.splice( index, 1 ); sync(); render(); } }, 'Delete rule' ),
-		] ),
-		el( 'div', { class: 'ace-ad-rule__targets' }, [
-			el( 'p', { class: 'description' }, 'Show when ALL of these match:' ),
-			...rule.targets.map( ( t, i ) => targetRow( rule, t, i ) ),
-			el( 'button', { type: 'button', class: 'button', onclick: () => { rule.targets.push( { type: 'taxonomy_term', values: [] } ); sync(); render(); } }, '+ Add target' ),
-		] ),
-		el( 'div', { class: 'ace-ad-rule__extra' }, [
-			el( 'label', {}, [ 'Loop item ', loop ] ),
-			el( 'label', {}, [ 'Inside block ', parent ] ),
-			rule.slot === 'in-content' ? el( 'label', {}, [ 'After paragraphs ', after ] ) : null,
-		] ),
-	] );
-}
-
-function render() {
-	root.replaceChildren(
-		...rules.map( ruleCard ),
-		el( 'p', {}, el( 'button', { type: 'button', class: 'button button-secondary', onclick: () => { rules.push( newRule() ); sync(); render(); } }, '+ Add rule' ) )
+function RuleCard( { rule, index, update, remove } ) {
+	const slots = Object.entries( CFG.slots ).map( ( [ value, label ] ) => ( { value, label } ) );
+	const types = Object.entries( CFG.target_types ).map( ( [ value, label ] ) => ( { value, label } ) );
+	const setTarget = ( i, patch ) => update( { ...rule, targets: rule.targets.map( ( t, j ) => ( j === i ? { ...t, ...patch } : t ) ) } );
+	return (
+		<Card size="small">
+			<CardHeader>
+				<Text weight={ 600 }>{ sprintf( __( 'Rule %d', 'ace-ads-manager' ), index + 1 ) }</Text>
+				<Button size="small" variant="tertiary" isDestructive onClick={ remove }>{ __( 'Delete', 'ace-ads-manager' ) }</Button>
+			</CardHeader>
+			<CardBody>
+				<VStack spacing={ 3 }>
+					<HStack>
+						<SelectControl label={ __( 'Slot', 'ace-ads-manager' ) } value={ rule.slot } options={ slots } onChange={ ( v ) => update( { ...rule, slot: v } ) } __nextHasNoMarginBottom />
+						<NumberControl label={ __( 'Priority', 'ace-ads-manager' ) } value={ rule.priority } onChange={ ( v ) => update( { ...rule, priority: parseInt( v, 10 ) || 0 } ) } __nextHasNoMarginBottom />
+					</HStack>
+					<Text variant="muted">{ __( 'Show when ALL of these match:', 'ace-ads-manager' ) }</Text>
+					{ rule.targets.map( ( target, i ) => (
+						<VStack key={ i } spacing={ 2 } className="ace-ad-target">
+							<HStack>
+								<SelectControl value={ target.type } options={ types } onChange={ ( v ) => setTarget( i, { type: v, values: [] } ) } __nextHasNoMarginBottom />
+								<Button size="small" variant="tertiary" isDestructive onClick={ () => update( { ...rule, targets: rule.targets.length > 1 ? rule.targets.filter( ( _, j ) => j !== i ) : [ { type: 'everywhere', values: [] } ] } ) }>{ __( 'Remove', 'ace-ads-manager' ) }</Button>
+							</HStack>
+							<Values target={ target } onChange={ ( values ) => setTarget( i, { values } ) } />
+						</VStack>
+					) ) }
+					<Button variant="secondary" size="small" onClick={ () => update( { ...rule, targets: [ ...rule.targets, { type: 'taxonomy_term', values: [] } ] } ) }>{ __( '+ Add target', 'ace-ads-manager' ) }</Button>
+					<HStack>
+						<TextControl label={ __( 'Loop item', 'ace-ads-manager' ) } value={ rule.loop_index } placeholder="3 or 3n" onChange={ ( v ) => update( { ...rule, loop_index: v.replace( /[^0-9n]/g, '' ) } ) } __nextHasNoMarginBottom />
+						<TextControl label={ __( 'Inside block', 'ace-ads-manager' ) } value={ rule.parent_block } placeholder="core/group" onChange={ ( v ) => update( { ...rule, parent_block: v.trim() } ) } __nextHasNoMarginBottom />
+					</HStack>
+					{ rule.slot === 'in-content' && (
+						<NumberControl label={ __( 'After paragraphs (0 = default)', 'ace-ads-manager' ) } min={ 0 } value={ rule.after_paragraphs } onChange={ ( v ) => update( { ...rule, after_paragraphs: parseInt( v, 10 ) || 0 } ) } __nextHasNoMarginBottom />
+					) }
+				</VStack>
+			</CardBody>
+		</Card>
 	);
 }
 
-document.addEventListener( 'DOMContentLoaded', () => {
-	root = document.getElementById( 'ace-ad-rules-app' );
-	jsonField = document.getElementById( 'ace-ad-rules-json' );
-	if ( ! root || ! jsonField ) return;
-	try {
-		rules = JSON.parse( jsonField.value || '[]' );
-	} catch ( e ) {
-		rules = [];
-	}
-	render();
-	document.querySelector( '.ace-ad-rules-toggle-json' )?.addEventListener( 'click', ( e ) => {
-		e.preventDefault();
-		jsonField.hidden = ! jsonField.hidden;
-		if ( ! jsonField.hidden ) {
-			jsonField.addEventListener( 'change', () => { try { rules = JSON.parse( jsonField.value ); render(); } catch ( err ) { window.alert( 'Invalid JSON' ); } } );
-		}
-	} );
+function RulesPanel() {
+	const [ meta, set ] = useMeta();
+	const rules = useMemo( () => ( Array.isArray( meta[ META.rules ] ) ? meta[ META.rules ] : [] ), [ meta ] );
+	const setRules = ( next ) => set( META.rules, next );
+	const newRule = () => ( { slot: Object.keys( CFG.slots )[ 0 ] || 'top', priority: 10, targets: [ { type: 'everywhere', values: [] } ], loop_index: '', parent_block: '', after_paragraphs: 0 } );
+	return (
+		<PluginDocumentSettingPanel name="ace-ad-rules" title={ __( 'Placement rules', 'ace-ads-manager' ) } className="ace-ad-rules-panel">
+			<VStack spacing={ 3 }>
+				<Text variant="muted">{ __( 'Each rule places this ad into a slot when every target matches. Highest priority wins, then the more specific rule.', 'ace-ads-manager' ) } <ExternalLink href={ CFG.rules_guide_url }>{ __( 'Guide', 'ace-ads-manager' ) }</ExternalLink></Text>
+				{ ! rules.length && <Notice status="warning" isDismissible={ false }>{ __( 'No rules yet: this ad will only show where it is pinned in an Ad block.', 'ace-ads-manager' ) }</Notice> }
+				{ rules.map( ( rule, i ) => (
+					<RuleCard key={ i } rule={ rule } index={ i } update={ ( r ) => setRules( rules.map( ( x, j ) => ( j === i ? r : x ) ) ) } remove={ () => setRules( rules.filter( ( _, j ) => j !== i ) ) } />
+				) ) }
+				<Button variant="secondary" onClick={ () => setRules( [ ...rules, newRule() ] ) }>{ __( '+ Add rule', 'ace-ads-manager' ) }</Button>
+				{ CFG.overview_url && <ExternalLink href={ CFG.overview_url }>{ __( 'See every placement', 'ace-ads-manager' ) }</ExternalLink> }
+			</VStack>
+		</PluginDocumentSettingPanel>
+	);
+}
+
+registerPlugin( 'ace-ads-editor', {
+	render: () => (
+		<>
+			<OfferPanel />
+			<RulesPanel />
+		</>
+	),
 } );

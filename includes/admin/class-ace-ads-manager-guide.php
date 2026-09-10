@@ -22,7 +22,7 @@ final class Ace_Ads_Manager_Guide {
                 'content' => '
 <p>Ads are content, not embeds. An <strong>Ad</strong> is a post with a headline, copy, offer code, link and an optional image. You place <strong>one Ad block</strong> wherever you want a slot, and <strong>placement rules</strong> on each ad decide which ad fills that slot on which pages. Change the ad once and every placement updates.</p>
 <ol>
-<li><strong>Ads → Add new.</strong> Title is the headline, the editor content is the copy. Fill in the Offer box (code, link, dates) and add at least one placement rule.</li>
+<li><strong>Ads → Add new.</strong> Title is the headline, the editor content is the copy. Fill in the <strong>Offer</strong> panel in the sidebar (code, link, dates) and add at least one rule in the <strong>Placement rules</strong> panel.</li>
 <li><strong>Put an Ad block</strong> in a template, a pattern or a post, and pick its slot. Leave the ad on "resolve by rules".</li>
 <li><strong>Check Placements</strong> here to see what resolves where, and <strong>Analytics</strong> once traffic arrives.</li>
 </ol>
@@ -42,7 +42,7 @@ final class Ace_Ads_Manager_Guide {
 <tr><th>Start / End</th><td>The ad only shows inside this window (site time zone). Empty means open-ended</td></tr>
 <tr><th>Link rel</th><td>Follow the site default, or force nofollow/sponsored on or off for this ad</td></tr>
 </table>
-<p>An ad is <strong>live</strong> when it is published and inside its window. Drafts and expired ads never render, but their rules still appear in Placements greyed out so you can see what will come back.</p>',
+<p>Both panels live in the document sidebar of the block editor, under the Ad tab. An ad is <strong>live</strong> when it is published and inside its window. Drafts and expired ads never render, but their rules still appear in Placements greyed out so you can see what will come back.</p>',
             ],
             'rules' => [
                 'title'   => __( 'Placement rules', 'ace-ads-manager' ),
