@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Ace_Ads_Tracking {
 
     const NS         = 'ace-ads/v1';
-    const DB_VERSION = '2';
+    const DB_VERSION = '3';
     const EVENTS     = [ 'impression', 'viewable', 'click' ];
     const CRON       = 'ace_ads_prune_events';
 
@@ -48,6 +48,11 @@ final class Ace_Ads_Tracking {
     public static function daily_table(): string {
         global $wpdb;
         return $wpdb->prefix . 'ace_ads_daily';
+    }
+
+    public static function rate_table(): string {
+        global $wpdb;
+        return $wpdb->prefix . 'ace_ads_rate';
     }
 
     public function maybe_upgrade(): void {
@@ -106,7 +111,17 @@ final class Ace_Ads_Tracking {
             KEY day (day)
         ) {$charset};" );
 
+        $rate = self::rate_table();
+        dbDelta( "CREATE TABLE {$rate} (
+            visitor varchar(40) NOT NULL,
+            minute int(10) unsigned NOT NULL,
+            hits int(10) unsigned NOT NULL DEFAULT 0,
+            PRIMARY KEY  (visitor, minute),
+            KEY minute (minute)
+        ) {$charset};" );
+
         $ok = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $events ) ) === $events
+            && $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $rate ) ) === $rate
             && $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $daily ) ) === $daily;
         if ( $ok ) {
             update_option( 'ace_ads_db_version', self::DB_VERSION, false );
@@ -258,7 +273,7 @@ final class Ace_Ads_Tracking {
         $column = [ 'impression' => 'impressions', 'viewable' => 'viewable', 'click' => 'clicks' ][ $row['event'] ];
         $wpdb->query( $wpdb->prepare(
             'INSERT INTO ' . self::daily_table() . " (day, ad_id, slot, rule_index, post_id, device, {$column}) VALUES (%s, %d, %s, %d, %d, %s, 1) ON DUPLICATE KEY UPDATE {$column} = {$column} + 1",
-            get_date_from_gmt( $row['created_at'], 'Y-m-d' ), $row['ad_id'], $row['slot'], $row['rule_index'], $row['post_id'], $row['device']
+            self::site_day( strtotime( $row['created_at'] . ' UTC' ) ), $row['ad_id'], $row['slot'], $row['rule_index'], $row['post_id'], $row['device']
         ) );
 
         do_action( 'ace_ads_event', $row['event'], $row['ad_id'], $row );
@@ -281,6 +296,7 @@ final class Ace_Ads_Tracking {
         global $wpdb;
         $days = max( 7, (int) Ace_Ads_Manager_Settings::get( 'retention_days', 90 ) );
         $wpdb->query( $wpdb->prepare( 'DELETE FROM ' . self::events_table() . ' WHERE created_at < %s', gmdate( 'Y-m-d H:i:s', time() - $days * DAY_IN_SECONDS ) ) );
+        $wpdb->query( $wpdb->prepare( 'DELETE FROM ' . self::rate_table() . ' WHERE minute < %d', intdiv( time(), 60 ) - 2 ) );
     }
 
     // ---------------------------------------------------------------- helpers
@@ -312,23 +328,105 @@ final class Ace_Ads_Tracking {
             $salt = wp_generate_password( 32, false );
             update_option( 'ace_ads_visitor_salt', $salt, false );
         }
-        $ip = isset( $_SERVER['REMOTE_ADDR'] ) ? (string) $_SERVER['REMOTE_ADDR'] : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
-        if ( ! empty( $_SERVER['HTTP_CF_CONNECTING_IP'] ) ) {
-            $ip = (string) $_SERVER['HTTP_CF_CONNECTING_IP']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
-        } elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
-            $ip = trim( explode( ',', (string) $_SERVER['HTTP_X_FORWARDED_FOR'] )[0] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
-        }
+        $ip = self::client_ip( $_SERVER ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
         return substr( hash( 'sha256', $salt . '|' . gmdate( 'Y-m-d' ) . '|' . $ip . '|' . $user_agent ), 0, 40 );
     }
 
-    private static function within_rate_limit( string $visitor ): bool {
-        $key   = 'ace_ads_rl_' . $visitor;
-        $count = (int) get_transient( $key );
-        if ( $count >= self::RATE_LIMIT ) {
+    /**
+     * The client address. Forwarded headers are only believed when the request
+     * arrives from a trusted proxy, so a client cannot rotate a header to look
+     * like a new visitor. CF-Connecting-IP needs a Cloudflare peer; for
+     * X-Forwarded-For the nearest address that is not itself a proxy wins.
+     *
+     * @param array $server $_SERVER or a test double.
+     */
+    public static function client_ip( array $server ): string {
+        $remote = isset( $server['REMOTE_ADDR'] ) ? trim( (string) $server['REMOTE_ADDR'] ) : '';
+        if ( '' === $remote || ! self::ip_in( $remote, self::trusted_proxies() ) ) {
+            return $remote;
+        }
+        $cf = isset( $server['HTTP_CF_CONNECTING_IP'] ) ? trim( (string) $server['HTTP_CF_CONNECTING_IP'] ) : '';
+        if ( '' !== $cf && filter_var( $cf, FILTER_VALIDATE_IP ) && self::ip_in( $remote, self::CLOUDFLARE ) ) {
+            return $cf;
+        }
+        if ( ! empty( $server['HTTP_X_FORWARDED_FOR'] ) ) {
+            $hops = array_reverse( array_map( 'trim', explode( ',', (string) $server['HTTP_X_FORWARDED_FOR'] ) ) );
+            foreach ( $hops as $hop ) {
+                if ( ! filter_var( $hop, FILTER_VALIDATE_IP ) ) {
+                    break;
+                }
+                if ( ! self::ip_in( $hop, self::trusted_proxies() ) ) {
+                    return $hop;
+                }
+            }
+        }
+        return $remote;
+    }
+
+    /** Cloudflare's published ranges (cloudflare.com/ips). */
+    const CLOUDFLARE = [
+        '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22', '141.101.64.0/18',
+        '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20', '197.234.240.0/22', '198.41.128.0/17',
+        '162.158.0.0/15', '104.16.0.0/13', '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+        '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32', '2405:8100::/32',
+        '2a06:98c0::/29', '2c0f:f248::/32',
+    ];
+
+    /**
+     * Proxies whose forwarded headers are believed: Cloudflare plus loopback and
+     * private ranges (a load balancer in front of the site).
+     */
+    public static function trusted_proxies(): array {
+        $ranges = array_merge( self::CLOUDFLARE, [ '127.0.0.0/8', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '::1/128', 'fc00::/7' ] );
+        return (array) apply_filters( 'ace_ads_trusted_proxies', $ranges );
+    }
+
+    /** Whether $ip falls in any of the CIDR ranges (IPv4 or IPv6). */
+    public static function ip_in( string $ip, array $ranges ): bool {
+        $bin = @inet_pton( $ip ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+        if ( false === $bin ) {
             return false;
         }
-        set_transient( $key, $count + 1, MINUTE_IN_SECONDS );
-        return true;
+        foreach ( $ranges as $range ) {
+            $parts = explode( '/', (string) $range, 2 );
+            $net   = @inet_pton( $parts[0] ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+            if ( false === $net || strlen( $net ) !== strlen( $bin ) ) {
+                continue;
+            }
+            $bits  = isset( $parts[1] ) ? (int) $parts[1] : strlen( $bin ) * 8;
+            $bytes = intdiv( $bits, 8 );
+            if ( substr( $bin, 0, $bytes ) !== substr( $net, 0, $bytes ) ) {
+                continue;
+            }
+            $rest = $bits % 8;
+            if ( $rest ) {
+                $mask = chr( ( 0xff << ( 8 - $rest ) ) & 0xff );
+                if ( ( $bin[ $bytes ] & $mask ) !== ( $net[ $bytes ] & $mask ) ) {
+                    continue;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * At most RATE_LIMIT events per visitor per minute. One upsert counts the hit
+     * and hands back the new total through LAST_INSERT_ID(), under the row lock,
+     * so parallel hits cannot overshoot. (The object cache is not used because a
+     * drop-in may keep visitor requests runtime-only, which would count per request.)
+     */
+    private static function within_rate_limit( string $visitor ): bool {
+        global $wpdb;
+        $done = $wpdb->query( $wpdb->prepare(
+            'INSERT INTO ' . self::rate_table() . ' (visitor, minute, hits) VALUES (%s, %d, LAST_INSERT_ID(1)) ON DUPLICATE KEY UPDATE hits = LAST_INSERT_ID(hits + 1)',
+            $visitor,
+            intdiv( time(), 60 )
+        ) );
+        if ( false === $done ) {
+            return true; // table missing: fail open, as the tracker always has
+        }
+        return (int) $wpdb->get_var( 'SELECT LAST_INSERT_ID()' ) <= self::RATE_LIMIT;
     }
 
     /**
@@ -339,7 +437,13 @@ final class Ace_Ads_Tracking {
         return (int) $wpdb->get_var( $wpdb->prepare(
             'SELECT COALESCE(SUM(clicks), 0) FROM ' . self::daily_table() . ' WHERE ad_id = %d AND day >= %s',
             $ad_id,
-            gmdate( 'Y-m-d', time() - $days * DAY_IN_SECONDS )
+            // Day buckets are written in site time, so read them in site time too.
+            self::site_day( time() - $days * DAY_IN_SECONDS )
         ) );
+    }
+
+    /** The site-time Y-m-d of a Unix timestamp: the one clock for day buckets. */
+    public static function site_day( int $timestamp ): string {
+        return wp_date( 'Y-m-d', $timestamp );
     }
 }

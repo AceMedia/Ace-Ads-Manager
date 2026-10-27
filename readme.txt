@@ -4,7 +4,7 @@ Tags: ads, advertising, block, placement, banners
 Requires at least: 6.4
 Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 0.3.0
+Stable tag: 0.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -29,6 +29,9 @@ Part of the Ace plugin family (Ace Crawl Enhancer, Ace Redis Cache, Ace Communit
 Open an issue on the plugin's GitHub repository.
 
 == Changelog ==
+
+= 0.3.1 =
+* Tracking: day buckets are written and read on the site clock, the rate limit is atomic, and forwarded IP headers are only trusted from known proxies.
 
 = 0.3.0 =
 * "Except" on any target, for everywhere-except-this-category rules.

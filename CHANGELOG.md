@@ -2,6 +2,11 @@
 
 Plain-English record of what changed in each release. Dates are when the version was pushed.
 
+## 0.3.1 - 27 October 2026
+- Click totals read day buckets on the same site clock they are written with, so late evening clicks in BST land on the right day.
+- The tracking rate limit is one atomic upsert in a small per-minute table, so parallel hits cannot exceed it.
+- CF-Connecting-IP and X-Forwarded-For are only believed from Cloudflare or private proxy addresses (filter: ace_ads_trusted_proxies).
+
 ## 0.3.0 - 10 September 2026
 - "Except" on any target, for everywhere-except-this-category rules.
 - Image-only banner format: the featured image is the whole ad, linked, for the old pasted banners.
